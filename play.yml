@@ -1,0 +1,50 @@
+---
+- name: Network Getting Started First Playbook
+  hosts: all
+  vars:
+    ansible_user: root
+    ansible_ssh_private_key_file: ./files/id_rsa
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+  roles:
+    - name: install docker engine
+      role: geerlingguy.docker
+  tasks:
+    - name: install pip3
+      package:
+        name: python3-pip
+    - name: install docker dependency
+      pip:
+        name: docker
+    - name: copy daemon.json
+      copy:
+        src: ./files/daemon.json
+        dest: /etc/docker/daemon.json
+      notify:
+        - restart docker daemon
+    - name: copy private key
+      copy:
+        src: ./files/id_rsa
+        dest: /root/.ssh/id_rsa
+        mode: '0600'
+    - name: download images
+      docker_image:
+        name: "{{item}}"
+        state: present
+      loop:
+        - quay.io/ansible/molecule:3.0.2
+        - geerlingguy/docker-ubuntu1804-ansible:latest
+        - docker.io/pycontribs/centos:7
+    - name: get gitlab hostkey
+      known_hosts:
+        name: gitlab.com
+        key: "{{ lookup('pipe', 'ssh-keyscan -trsa gitlab.com') }}"
+    - name: clone workshop repository
+      git:
+        repo: 'git@gitlab.com:devopsgatheringgdata/moleculeworkshopsteps.git'
+        dest: /root/workshop
+  handlers:
+  - name: restart docker daemon
+    service:
+      name: docker
+      state: restarted
+  
